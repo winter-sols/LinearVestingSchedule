@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "hardhat/console.sol";
 
 contract LinearVestingSchedule is ReentrancyGuard {
@@ -14,6 +15,7 @@ contract LinearVestingSchedule is ReentrancyGuard {
       address to;
       uint256 amount;
       uint256 time;
+      uint256 createdAt;
       uint256 lastRedeemTime;
     }
 
@@ -51,8 +53,9 @@ contract LinearVestingSchedule is ReentrancyGuard {
             _erc20Token,
             _to,
             _amount,
-            _time,
-            block.timestamp
+            _time, // time
+            block.timestamp, // createdAt
+            block.timestamp // lastRedeemTime
         );
         scheduleIdTracker += 1;
         emit Minted(_erc20Token, _to, _amount, _time);
@@ -66,14 +69,19 @@ contract LinearVestingSchedule is ReentrancyGuard {
         VestingSchedule storage vestingSchedule = vestingSchedules[scheduleId];
         uint256 elapsedTime = block.timestamp - vestingSchedule.lastRedeemTime;
 
+        uint256 remainingTimeTillExpiration = vestingSchedule.createdAt + vestingSchedule.time - vestingSchedule.lastRedeemTime; 
+        uint256 actualElapsedTime = Math.min(remainingTimeTillExpiration, elapsedTime);
+
         require(vestingSchedule.to != address(0), 'LVS: no scheduleId');
         require(msg.sender == vestingSchedule.to, 'LVS: invalid scheduleId for user');
-        require(elapsedTime <= vestingSchedule.time, 'LVS: vesting period expired');
 
-        uint256 redeemAmount = vestingSchedule.amount * elapsedTime / vestingSchedule.time;
-        vestingSchedule.lastRedeemTime = block.timestamp;
+        uint256 redeemAmount = vestingSchedule.amount * actualElapsedTime / vestingSchedule.time;
 
-        IERC20(vestingSchedule.erc20Token).safeTransfer(vestingSchedule.to, redeemAmount);
-        emit Redeemed(scheduleId, vestingSchedule.to, redeemAmount);
+        if (redeemAmount > 0) {
+            vestingSchedule.lastRedeemTime = block.timestamp;
+
+            IERC20(vestingSchedule.erc20Token).safeTransfer(vestingSchedule.to, redeemAmount);
+            emit Redeemed(scheduleId, vestingSchedule.to, redeemAmount);
+        }
     }
 }
