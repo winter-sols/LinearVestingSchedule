@@ -1,6 +1,8 @@
 {
   "devDependencies": {
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@openzeppelin/contracts": "^4.4.2",
+    "chai": "^4.3.4",
     "hardhat": "^2.8.2"
   },
   "name": "vesting",
